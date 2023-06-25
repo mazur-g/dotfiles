@@ -58,6 +58,13 @@ require('lazy').setup({
   'tpope/vim-rhubarb',
   'f-person/git-blame.nvim',
 
+  {
+    'mrcjkb/haskell-tools.nvim',
+    requires = {
+      'nvim-lua/plenary.nvim',
+    },
+  },
+
   -- SQL integration
   {
     'kristijanhusak/vim-dadbod-ui',
