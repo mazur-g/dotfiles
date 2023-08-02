@@ -1,0 +1,7 @@
+key_bindings:
+-   { key: W,      mods: Alt, chars: "\x1bw"                       } # Alt + w
+font:
+  normal:
+    family: Inconsolata Nerd Font
+    style: Regular
+  size: 17.0

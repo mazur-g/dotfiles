@@ -1,0 +1,42 @@
+cmd open_config ${{
+    file=$(cat ~/.config_files | fzf --with-nth 1 -1 | cut -d' ' -f2) 
+    [ -n "$file" ] && nvim $file < /dev/tty 
+    exit 0 
+}}
+
+cmd z-jump ${{
+  ZLUA_SCRIPT="$HOME/.config/lf/z.lua"  # Usually unnecessary
+  lf -remote "send ${id} cd '$($ZLUA_SCRIPT -e $@)'"
+}}
+
+cmd on-cd ${{
+   ~/.config/lf/z.lua --add $PWD
+}}
+
+# remove original mappings (remapped later)
+map y
+map r
+
+# z.lua mappings
+map Z push :z-jump<space>-I<space>
+map zb push :z-jump<space>-b<space>
+map zz push :z-jump<space>
+map zl !~/.config/lf/z.lua -l 
+# z.lua mappings
+
+map o open_config
+map d delete
+map x cut
+
+map gr cd ~/repos
+map gc cd ~/.config
+map gd cd ~/Downloads
+map ga cd /Applications
+
+map rg $lazygit
+map re rename
+
+map yy copy
+map yb $printf $(basename "$f") | pbcopy
+map yp $printf "$fx" | pbcopy
+map yc $cat "$f" | pbcopy

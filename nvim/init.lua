@@ -158,6 +158,22 @@ require('lazy').setup({
   },
 
   {
+    'macguirerintoul/night_owl_light.vim',
+    priority = 993,
+    config = function()
+      vim.cmd.colorscheme 'night_owl_light'
+    end,
+  },
+
+  {
+    'DAddYE/soda.vim',
+    priority = 994,
+    config = function()
+      vim.cmd.colorscheme 'soda'
+    end,
+  },
+
+  {
     'luisiacc/gruvbox-baby',
     priority = 995,
     config = function()
@@ -167,9 +183,9 @@ require('lazy').setup({
 
   {
     'catppuccin/nvim',
-    priority = 996,
+    priority = 992,
     config = function()
-      vim.cmd.colorscheme 'catppuccin-mocha'
+      vim.cmd.colorscheme 'catppuccin-latte'
     end,
   },
 
@@ -340,7 +356,8 @@ map('n', '<C-h>', '<C-w>h', { desc = "window switch - left" })
 map('n', '<C-j>', '<C-w>j', { desc = "window switch - down" })
 map('n', '<C-k>', '<C-w>k', { desc = "window switch - up" })
 
-map('n', '<leader>t', ':NvimTreeToggle<CR>', { silent = true })
+map('n', '<leader>tt', ':NvimTreeToggle<CR>', { silent = true })
+map('n', '<leader>tf', ':NvimTreeFindFile<CR>', { silent = true })
 map('n', '<leader>z', ':tabnew %<CR>', { silent = true })
 map('n', '<leader>yp', ':let @+ = expand("%")<CR>', { silent = true })
 map('n', '<leader>o', ':OutputPanel<CR>', { silent = true })
@@ -373,6 +390,10 @@ require('telescope').setup {
       i = {
         ['<C-u>'] = false,
         ['<C-d>'] = false,
+        ['<C-s>'] = require('telescope.actions').send_selected_to_qflist,
+      },
+      n = {
+        ['<C-s>'] = require('telescope.actions').send_selected_to_qflist,
       },
     },
   },
@@ -631,6 +652,12 @@ cmp.setup {
 
 
 vim.cmd([[
+
+if exists('+termguicolors')
+  let &t_8f="\<Esc>[38;2;%lu;%lu;%lum"
+  let &t_8b="\<Esc>[48;2;%lu;%lu;%lum"
+  set termguicolors
+endif
 
 
 autocmd FileType sql,mysql,plsql lua require('cmp').setup.buffer({ sources = {{ name = 'vim-dadbod-completion' }} })
