@@ -361,6 +361,7 @@ map('n', '<leader>tf', ':NvimTreeFindFile<CR>', { silent = true })
 map('n', '<leader>z', ':tabnew %<CR>', { silent = true })
 map('n', '<leader>yp', ':let @+ = expand("%")<CR>', { silent = true })
 map('n', '<leader>o', ':OutputPanel<CR>', { silent = true })
+map('n', '<leader>df', ':Gvdiffsplit!<CR>', { desc = '3-way diff on git file', silent = true })
 
 -- [[ Highlight on yank ]]
 -- See `:help vim.highlight.on_yank()`
@@ -652,6 +653,9 @@ cmp.setup {
 
 
 vim.cmd([[
+
+
+autocmd BufWritePre * :%s/\s\+$//e
 
 if exists('+termguicolors')
   let &t_8f="\<Esc>[38;2;%lu;%lu;%lum"
