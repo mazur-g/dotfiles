@@ -99,6 +99,8 @@ require('lazy').setup({
     end
   },
 
+  'tpope/vim-abolish',
+
 
 
   -- Detect tabstop and shiftwidth automatically
@@ -246,7 +248,7 @@ require('lazy').setup({
   --  { 'numToStr/Comment.nvim',         opts = {} },
 
   -- Fuzzy Finder (files, lsp, etc)
-  { 'nvim-telescope/telescope.nvim', version = '*', dependencies = { 'nvim-lua/plenary.nvim' } },
+  { 'nvim-telescope/telescope.nvim', tag = '0.1.2', dependencies = { 'nvim-lua/plenary.nvim' } },
 
   -- Grep with file picker
   {
@@ -295,7 +297,6 @@ require('lazy').setup({
 
 -- [[ Setting options ]]
 -- See `:help vim.o`
-vim.lsp.set_log_level("debug")
 
 -- Set highlight on search
 vim.o.hlsearch = false
@@ -362,6 +363,7 @@ map('n', '<leader>z', ':tabnew %<CR>', { silent = true })
 map('n', '<leader>yp', ':let @+ = expand("%")<CR>', { silent = true })
 map('n', '<leader>o', ':OutputPanel<CR>', { silent = true })
 map('n', '<leader>df', ':Gvdiffsplit!<CR>', { desc = '3-way diff on git file', silent = true })
+map('n', '<leader>db', ':DBUIToggle<CR>', { desc = 'Toggle DB UI', silent = true })
 
 -- [[ Highlight on yank ]]
 -- See `:help vim.highlight.on_yank()`
@@ -577,6 +579,12 @@ local servers = {
       telemetry = { enable = false },
     },
   },
+
+  elixirls = {
+    autoBuild = false,
+    dialyzerEnabled = false,
+    fetchDeps = false,
+  },
 }
 
 -- Setup neovim lua configuration
@@ -585,6 +593,8 @@ require('neodev').setup()
 -- nvim-cmp supports additional completion capabilities, so broadcast that to servers
 local capabilities = vim.lsp.protocol.make_client_capabilities()
 capabilities = require('cmp_nvim_lsp').default_capabilities(capabilities)
+capabilities.textDocument.completion.dynamicRegistration = true
+capabilities.workspace = { didChangeConfiguration = { dynamicRegistration = true } }
 
 -- Ensure the servers above are installed
 local mason_lspconfig = require 'mason-lspconfig'
@@ -603,6 +613,7 @@ mason_lspconfig.setup_handlers {
   end,
 }
 
+vim.lsp.set_log_level("debug")
 
 -- nvim-cmp setup
 local cmp = require 'cmp'
@@ -652,8 +663,10 @@ cmp.setup {
 }
 
 
-vim.cmd([[
+vim.g.db_ui_auto_execute_table_helpers = 1
+vim.g.db_ui_use_nerd_fonts = 1
 
+vim.cmd([[
 
 autocmd BufWritePre * :%s/\s\+$//e
 
@@ -663,6 +676,11 @@ if exists('+termguicolors')
   set termguicolors
 endif
 
+
+" DB integration
+
+"let g:db_ui_auto_execute_table_helpers = 1
+"let g:db_ui_use_nerd_fonts = 1
 
 autocmd FileType sql,mysql,plsql lua require('cmp').setup.buffer({ sources = {{ name = 'vim-dadbod-completion' }} })
 
