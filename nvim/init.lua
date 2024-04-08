@@ -11,7 +11,6 @@ Kickstart Guide:
 
 I have left several `:help X` comments throughout the init.lua
 You should run that command and read that help section for more information.
-
 In addition, I have some `NOTE:` items throughout the file.
 These are for you, the reader to help understand what is happening. Feel free to delete
 them once you know what you're doing, but they should serve as a guide for when you
@@ -21,10 +20,27 @@ I hope you enjoy your Neovim journey,
 - TJ
 
 P.S. You can delete this when you're done too. It's your config now :)
+
+
+
 --]]
 -- Set <space> as the leader key
 -- See `:help mapleader`
 --  NOTE: Must happen before plugins are required (otherwise wrong leader will be used)
+--
+--
+--
+
+local wrap = function(func, ...)
+  local args = { ... }
+  return function()
+    func(unpack(args))
+  end
+end
+
+
+
+vim.wo.relativenumber = true
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
@@ -57,6 +73,34 @@ require('lazy').setup({
   'tpope/vim-fugitive',
   'tpope/vim-rhubarb',
   'f-person/git-blame.nvim',
+  'rhysd/conflict-marker.vim',
+
+
+  -- better quickfix list
+
+  {
+    'kevinhwang91/nvim-bqf',
+    ft = 'qf',
+    config = function()
+      vim.api.nvim_create_user_command("FindAndReplace", function(opts)
+        vim.api.nvim_command(string.format("cdo s/%s/%s", opts.fargs[1], opts.fargs[2]))
+        vim.api.nvim_command("cfdo update")
+      end, { nargs = "*" })
+
+
+      vim.api.nvim_set_keymap(
+        "n",
+        "<leader>rp",
+        ":FindAndReplace ",
+        { noremap = true })
+    end
+  },
+  {
+    'junegunn/fzf',
+    config = function()
+      vim.fn['fzf#install']()
+    end
+  },
 
   {
     'mrcjkb/haskell-tools.nvim',
@@ -74,7 +118,6 @@ require('lazy').setup({
   },
   'kristijanhusak/vim-dadbod-completion',
 
-  -- Nvim treesitter
   {
     'nvim-tree/nvim-tree.lua',
     version = '*',
@@ -84,11 +127,50 @@ require('lazy').setup({
     end
   },
 
+  -- json support
+  {
+    'theprimeagen/jvim.nvim',
+    dependencies = { 'nvim-treesitter/nvim-treesitter' }
+
+  },
+
   {
     "mhanberg/output-panel.nvim",
     event = "VeryLazy",
     config = function()
       require("output_panel").setup()
+    end
+  },
+
+  -- kind of submodes handling
+  {
+    'anuvyklack/hydra.nvim',
+    config = function()
+      local Hydra = require('hydra')
+      local jvim = require('jvim')
+
+      Hydra({
+        name = 'Side scroll',
+        mode = 'n',
+        body = 'z',
+        heads = {
+          { 'h', '5zh', { desc = '←' } },
+          { 'l', '5zl', { desc = '→' } },
+          { 'H', 'zH', { desc = 'half screen ←' } },
+          { 'L', 'zL', { desc = 'half screen →' } },
+        }
+      })
+      Hydra({
+        name = 'Json browser',
+        mode = 'n',
+        body = '<leader>jm',
+        heads = {
+          { 'h', jvim.to_parent, { desc = '←' } },
+          { 'l', jvim.descend, { desc = '→' } },
+          { 'j', jvim.next_sibling, { desc = 'next sibling' } },
+          { 'k', jvim.prev_sibling, { desc = 'prev sibling' } },
+        }
+      })
     end
   },
 
@@ -143,7 +225,7 @@ require('lazy').setup({
   },
 
   -- Useful plugin to show you pending keybinds.
-  { 'folke/which-key.nvim',          opts = {} },
+  { 'folke/which-key.nvim', opts = {} },
   {
     -- Adds git releated signs to the gutter, as well as utilities for managing changes
     'lewis6991/gitsigns.nvim',
@@ -160,12 +242,36 @@ require('lazy').setup({
   },
 
   {
+    -- Highlight, edit, and navigate code
+    'nvim-treesitter/nvim-treesitter',
+    dependencies = {
+      'nvim-treesitter/nvim-treesitter-textobjects',
+    },
+    build = ":TSUpdate",
+  },
+
+
+  -- debugging
+  { 'mfussenegger/nvim-dap' },
+
+  { 'rcarriga/nvim-dap-ui', requires = { 'mfussenegger/nvim-dap' } },
+
+  {
     'macguirerintoul/night_owl_light.vim',
     priority = 993,
     config = function()
       vim.cmd.colorscheme 'night_owl_light'
     end,
   },
+
+  {
+    'rebelot/kanagawa.nvim',
+    priority = 2,
+    config = function()
+      vim.cmd.colorscheme 'kanagawa-dragon'
+    end,
+  },
+
 
   {
     'DAddYE/soda.vim',
@@ -176,16 +282,16 @@ require('lazy').setup({
   },
 
   {
-    'luisiacc/gruvbox-baby',
-    priority = 995,
+    'sainnhe/gruvbox-material',
+    priority = 883,
     config = function()
-      vim.cmd.colorscheme 'gruvbox-baby'
+      vim.cmd.colorscheme 'gruvbox-material'
     end,
   },
 
   {
     'catppuccin/nvim',
-    priority = 992,
+    priority = 10,
     config = function()
       vim.cmd.colorscheme 'catppuccin-latte'
     end,
@@ -203,21 +309,29 @@ require('lazy').setup({
 
 
   {
-    'rebelot/kanagawa.nvim',
-    priority = 999,
+    'mstcl/dmg',
+    priority = 3,
     config = function()
-      vim.cmd.colorscheme 'kanagawa'
+      vim.cmd.colorscheme 'dmg'
     end,
   },
 
+
+
   {
-    -- Theme inspired by Atom
-    'navarasu/onedark.nvim',
-    priority = 998,
+    'gmr458/vscode_modern_theme.nvim',
+    priority = 1,
+
     config = function()
-      vim.cmd.colorscheme 'onedark'
+      require("vscode_modern").setup({
+        cursorline = true,
+        transparent_background = false,
+        nvim_tree_darker = true,
+      })
+      vim.cmd.colorscheme 'vscode_modern'
     end,
   },
+
 
   {
     -- Set lualine as statusline
@@ -226,29 +340,95 @@ require('lazy').setup({
     opts = {
       options = {
         icons_enabled = false,
-        theme = 'onedark',
+        theme = 'sonokai',
         component_separators = '|',
         section_separators = '',
       },
     },
   },
 
+  -- {
+  --   -- Add indentation guides even on blank lines
+  --   'lukas-reineke/indent-blankline.nvim',
+  --   -- Enable `lukas-reineke/indent-blankline.nvim`
+  --   -- See `:help indent_blankline.txt`
+  --   main = 'ibl',
+  --   config = function()
+  --     require('ibl').setup()
+  --   end,
+  -- },
+  --
   {
-    -- Add indentation guides even on blank lines
-    'lukas-reineke/indent-blankline.nvim',
-    -- Enable `lukas-reineke/indent-blankline.nvim`
-    -- See `:help indent_blankline.txt`
-    opts = {
-      char = '┊',
-      show_trailing_blankline_indent = false,
+    "elixir-tools/elixir-tools.nvim",
+    version = "*",
+    event = { "BufReadPre", "BufNewFile" },
+    config = function()
+      local elixir = require("elixir")
+      local elixirls = require("elixir.elixirls")
+
+      elixir.setup {
+        nextls = { enable = false },
+        credo = { enable = false },
+        elixirls = {
+          enable = false,
+          settings = elixirls.settings {
+            dialyzerEnabled = false,
+            enableTestLenses = true,
+            projectDir = '/Users/gracjanmazur/repos/ecom_api/',
+            mixEnv = 'dev',
+          },
+          on_attach = function(client, bufnr)
+            vim.keymap.set("n", "<space>fp", ":ElixirFromPipe<cr>", { buffer = true, noremap = true })
+            vim.keymap.set("n", "<space>tp", ":ElixirToPipe<cr>", { buffer = true, noremap = true })
+            vim.keymap.set("v", "<space>em", ":ElixirExpandMacro<cr>", { buffer = true, noremap = true })
+          end,
+        }
+      }
+    end,
+    dependencies = {
+      "nvim-lua/plenary.nvim",
     },
+  },
+
+  -- command palette
+
+  {
+    "LinArcX/telescope-command-palette.nvim",
+    config = function()
+      vim.keymap.set("n", "<leader>cp", ":Telescope command_palette<cr>", { desc = '[C]ommand [P]alette' })
+    end,
+  },
+
+  -- running tests support
+
+  {
+    "nvim-neotest/neotest",
+    dependencies = {
+      "nvim-lua/plenary.nvim",
+      "antoinemadec/FixCursorHold.nvim",
+      "jfpedroza/neotest-elixir"
+    },
+
+    config = function()
+      require("neotest").setup({
+        adapters = {
+          require("neotest-elixir"),
+        }
+      })
+      vim.keymap.set('n', '<leader>trn', require('neotest').run.run, { desc = '[T]est [R] [N]earest' })
+      vim.keymap.set('n', '<leader>trl', require('neotest').run.run_last, { desc = '[T]est [R]un [L]ast' })
+      vim.keymap.set('n', '<leader>to', require('neotest').output_panel.toggle, { desc = '[T]est [O]utput toggle' })
+      vim.keymap.set('n', '<leader>ts', require('neotest').summary.toggle, { desc = '[T]est [S]summary toggle' })
+      vim.keymap.set('n', '<leader>tw', wrap(require('neotest').watch.toggle, vim.fn.expand('%')),
+        { desc = '[T]est [W]atch toggle' })
+    end
   },
 
   -- "gc" to comment visual regions/lines
   --  { 'numToStr/Comment.nvim',         opts = {} },
 
   -- Fuzzy Finder (files, lsp, etc)
-  { 'nvim-telescope/telescope.nvim', tag = '0.1.2', dependencies = { 'nvim-lua/plenary.nvim' } },
+  { 'nvim-telescope/telescope.nvim', branch = 'master', dependencies = { 'nvim-lua/plenary.nvim' } },
 
   -- Grep with file picker
   {
@@ -269,14 +449,6 @@ require('lazy').setup({
     end,
   },
 
-  {
-    -- Highlight, edit, and navigate code
-    'nvim-treesitter/nvim-treesitter',
-    dependencies = {
-      'nvim-treesitter/nvim-treesitter-textobjects',
-    },
-    build = ":TSUpdate",
-  },
 
   -- NOTE: Next Step on Your Neovim Journey: Add/Configure additional "plugins" for kickstart
   --       These are some example plugins that I've included in the kickstart repository.
@@ -336,6 +508,32 @@ vim.o.completeopt = 'menuone,noselect'
 -- NOTE: You should make sure your terminal supports this
 vim.o.termguicolors = true
 
+
+
+local dap = require('dap')
+dap.adapters.mix_task = {
+  type = 'executable',
+  command = '/Users/gracjanmazur/.local/share/nvim/mason/packages/elixir-ls/debugger.sh', -- debugger.bat for windows
+  args = {}
+}
+
+dap.configurations.elixir = {
+  {
+    type = "mix_task",
+    name = "mix test",
+    task = 'test',
+    taskArgs = { "--trace" },
+    request = "launch",
+    startApps = true, -- for Phoenix projects
+    projectDir = "${workspaceFolder}",
+    requireFiles = {
+      "test/**/test_helper.exs",
+      "test/**/*_test.exs"
+    }
+  },
+}
+
+
 -- [[ Basic Keymaps ]]
 
 -- Keymaps for better default experience
@@ -360,7 +558,7 @@ map('n', '<C-k>', '<C-w>k', { desc = "window switch - up" })
 map('n', '<leader>tt', ':NvimTreeToggle<CR>', { silent = true })
 map('n', '<leader>tf', ':NvimTreeFindFile<CR>', { silent = true })
 map('n', '<leader>z', ':tabnew %<CR>', { silent = true })
-map('n', '<leader>yp', ':let @+ = expand("%")<CR>', { silent = true })
+map('n', '<leader>yp', ':let @+ = expand("%:.")<CR>', { silent = true })
 map('n', '<leader>o', ':OutputPanel<CR>', { silent = true })
 map('n', '<leader>df', ':Gvdiffsplit!<CR>', { desc = '3-way diff on git file', silent = true })
 map('n', '<leader>db', ':DBUIToggle<CR>', { desc = 'Toggle DB UI', silent = true })
@@ -400,11 +598,30 @@ require('telescope').setup {
       },
     },
   },
+
+  extensions = {
+    command_palette = {
+      { "vim",
+        { "jumps", ":lua require('telescope.builtin').jumplist()" },
+      },
+      { "themes",
+        { "kanagawa-dragon",  ":lua require('kanagawa').load('dragon')" },
+        { "gruvbox-material", ":lua vim.cmd.colorscheme('gruvbox-material')" },
+        { "vscode-modern",    ":lua vim.cmd.colorscheme('vscode_modern')" },
+        { "sonokai",          ":lua vim.cmd.colorscheme('sonokai')" },
+      },
+
+      { "test",
+        { "run marked", ":lua require('neotest').summary.run_marked()" },
+      },
+    }
+  },
 }
 
 -- Enable telescope fzf native, if installed
 pcall(require('telescope').load_extension, 'fzf')
 pcall(require('telescope').load_extension, 'ag')
+pcall(require('telescope').load_extension('command_palette'))
 
 
 -- See `:help telescope.builtin`
@@ -418,8 +635,12 @@ vim.keymap.set('n', '<leader>/', function()
   })
 end, { desc = '[/] Fuzzily search in current buffer' })
 
+
 vim.keymap.set('n', '<leader>gf', require('telescope.builtin').git_files, { desc = 'Search [G]it [F]iles' })
 vim.keymap.set('n', '<leader>sf', require('telescope.builtin').find_files, { desc = '[S]earch [F]iles' })
+vim.keymap.set('n', '<leader>sa', wrap(require('telescope.builtin').find_files, { no_ignore = true, hidden = true }),
+  { desc = '[S]earch [A]ll files (even ignored in .gitignore)' })
+
 vim.keymap.set('n', '<leader>sh', require('telescope.builtin').help_tags, { desc = '[S]earch [H]elp' })
 vim.keymap.set('n', '<leader>sw', require('telescope.builtin').grep_string, { desc = '[S]earch current [W]ord' })
 vim.keymap.set('n', '<leader>sg', require('telescope.builtin').live_grep, { desc = '[S]earch by [G]rep' })
@@ -429,7 +650,7 @@ vim.keymap.set('n', '<leader>sd', require('telescope.builtin').diagnostics, { de
 -- See `:help nvim-treesitter`
 require('nvim-treesitter.configs').setup {
   -- Add languages to be installed here that you want installed for treesitter
-  ensure_installed = { 'c', 'cpp', 'go', 'lua', 'python', 'rust', 'tsx', 'typescript', 'vimdoc', 'vim', 'elixir' },
+  ensure_installed = { 'c', 'cpp', 'go', 'lua', 'python', 'rust', 'tsx', 'typescript', 'vimdoc', 'vim', 'elixir', 'json' },
 
   -- Autoinstall languages that are not installed. Defaults to false (but you can change for yourself!)
   auto_install = false,
@@ -502,7 +723,7 @@ vim.lsp.handlers["textDocument/publishDiagnostics"] = vim.lsp.with(
     },
     -- Use a function to dynamically turn signs off
     -- and on, using buffer local variables
-    signs = function(namespace, bufnr)
+    signs = function(_, bufnr)
       return vim.b[bufnr].show_signs == true
     end,
     -- Disable a feature
@@ -580,11 +801,12 @@ local servers = {
     },
   },
 
-  elixirls = {
-    autoBuild = false,
-    dialyzerEnabled = false,
-    fetchDeps = false,
-  },
+  -- elixirls = {
+  --   autoBuild = false,
+  --   dialyzerEnabled = false,
+  --   fetchDeps = false,
+  --   projectDir = '/Users/gracjanmazur/repos/ecom_api'
+  -- },
 }
 
 -- Setup neovim lua configuration
@@ -616,10 +838,9 @@ mason_lspconfig.setup_handlers {
 vim.lsp.set_log_level("debug")
 
 -- nvim-cmp setup
-local cmp = require 'cmp'
-local luasnip = require 'luasnip'
+local cmp = require('cmp')
 
-luasnip.config.setup {}
+local luasnip = require('luasnip')
 
 cmp.setup {
   snippet = {
@@ -670,15 +891,20 @@ vim.cmd([[
 
 autocmd BufWritePre * :%s/\s\+$//e
 
-if exists('+termguicolors')
-  let &t_8f="\<Esc>[38;2;%lu;%lu;%lum"
-  let &t_8b="\<Esc>[48;2;%lu;%lu;%lum"
-  set termguicolors
-endif
+:set listchars=eol:¬,tab:>·,trail:~,extends:>,precedes:<,space:␣
+:set list
+
+
+" if exists('+termguicolors')
+"   let &t_8f="\<Esc>[38;2;%lu;%lu;%lum"
+"   let &t_8b="\<Esc>[48;2;%lu;%lu;%lum"
+"   set termguicolors
+" endif
 
 
 " DB integration
 
+let g:db_ui_execute_on_save = 0
 "let g:db_ui_auto_execute_table_helpers = 1
 "let g:db_ui_use_nerd_fonts = 1
 
