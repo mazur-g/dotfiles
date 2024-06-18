@@ -75,15 +75,56 @@ require('lazy').setup({
   'f-person/git-blame.nvim',
   'rhysd/conflict-marker.vim',
 
+  -- -- visual selections
+  -- 'iago-lito/vim-visualMarks',
+
+  -- toggle maximizing
+
+  -- lazygit as floating window
+
+  {
+    "kdheepak/lazygit.nvim",
+    cmd = {
+      "LazyGit",
+      "LazyGitConfig",
+      "LazyGitCurrentFile",
+      "LazyGitFilter",
+      "LazyGitFilterCurrentFile",
+    },
+    -- optional for floating window border decoration
+    dependencies = {
+      "nvim-lua/plenary.nvim",
+    },
+    -- setting the keybinding for LazyGit with 'keys' is recommended in
+    -- order to load the plugin when the command is run for the first time
+    keys = {
+      { "<leader>lg", "<cmd>LazyGit<cr>", desc = "LazyGit" }
+    }
+  },
+
+  -- nicer prompt display
+
+  {
+    'stevearc/dressing.nvim',
+    opts = {},
+  },
+
+  {
+    'aserebryakov/vim-todo-lists',
+    opts = {},
+    config = function()
+    end
+  },
 
   -- better quickfix list
+  --
 
   {
     'kevinhwang91/nvim-bqf',
     ft = 'qf',
     config = function()
       vim.api.nvim_create_user_command("FindAndReplace", function(opts)
-        vim.api.nvim_command(string.format("cdo s/%s/%s", opts.fargs[1], opts.fargs[2]))
+        vim.api.nvim_command(string.format("cdo s/%s/%s/g", opts.fargs[1], opts.fargs[2]))
         vim.api.nvim_command("cfdo update")
       end, { nargs = "*" })
 
@@ -254,7 +295,14 @@ require('lazy').setup({
   -- debugging
   { 'mfussenegger/nvim-dap' },
 
-  { 'rcarriga/nvim-dap-ui', requires = { 'mfussenegger/nvim-dap' } },
+  {
+    'rcarriga/nvim-dap-ui',
+    requires = { 'mfussenegger/nvim-dap' },
+    config = function()
+      require('dapui').setup()
+      vim.keymap.set('n', '<leader>dv', require('dapui').toggle, { desc = '[D]ebug [V]iew' })
+    end
+  },
 
   {
     'macguirerintoul/night_owl_light.vim',
@@ -358,37 +406,6 @@ require('lazy').setup({
   --   end,
   -- },
   --
-  {
-    "elixir-tools/elixir-tools.nvim",
-    version = "*",
-    event = { "BufReadPre", "BufNewFile" },
-    config = function()
-      local elixir = require("elixir")
-      local elixirls = require("elixir.elixirls")
-
-      elixir.setup {
-        nextls = { enable = false },
-        credo = { enable = false },
-        elixirls = {
-          enable = false,
-          settings = elixirls.settings {
-            dialyzerEnabled = false,
-            enableTestLenses = true,
-            projectDir = '/Users/gracjanmazur/repos/ecom_api/',
-            mixEnv = 'dev',
-          },
-          on_attach = function(client, bufnr)
-            vim.keymap.set("n", "<space>fp", ":ElixirFromPipe<cr>", { buffer = true, noremap = true })
-            vim.keymap.set("n", "<space>tp", ":ElixirToPipe<cr>", { buffer = true, noremap = true })
-            vim.keymap.set("v", "<space>em", ":ElixirExpandMacro<cr>", { buffer = true, noremap = true })
-          end,
-        }
-      }
-    end,
-    dependencies = {
-      "nvim-lua/plenary.nvim",
-    },
-  },
 
   -- command palette
 
@@ -513,22 +530,26 @@ vim.o.termguicolors = true
 local dap = require('dap')
 dap.adapters.mix_task = {
   type = 'executable',
-  command = '/Users/gracjanmazur/.local/share/nvim/mason/packages/elixir-ls/debugger.sh', -- debugger.bat for windows
+  command = '/Users/gracjanmazur/.local/share/nvim/mason/packages/elixir-ls/debug_adapter.sh', -- debugger.bat for windows
   args = {}
 }
+
 
 dap.configurations.elixir = {
   {
     type = "mix_task",
     name = "mix test",
     task = 'test',
-    taskArgs = { "--trace" },
+    -- taskArgs = { "--trace" },
+    taskArgs = { "${relativeFile}" },
     request = "launch",
     startApps = true, -- for Phoenix projects
     projectDir = "${workspaceFolder}",
+    debugAutoInterpretAllModules = false,
+    debugInterpretModulesPatterns = { ".*Test" },
     requireFiles = {
       "test/**/test_helper.exs",
-      "test/**/*_test.exs"
+      "test/**/batch_ingested_test.exs"
     }
   },
 }
@@ -613,6 +634,7 @@ require('telescope').setup {
 
       { "test",
         { "run marked", ":lua require('neotest').summary.run_marked()" },
+        { "watch file", ":lua require('neotest').watch.toggle(vim.fn.expand('%'))" }
       },
     }
   },
@@ -650,7 +672,7 @@ vim.keymap.set('n', '<leader>sd', require('telescope.builtin').diagnostics, { de
 -- See `:help nvim-treesitter`
 require('nvim-treesitter.configs').setup {
   -- Add languages to be installed here that you want installed for treesitter
-  ensure_installed = { 'c', 'cpp', 'go', 'lua', 'python', 'rust', 'tsx', 'typescript', 'vimdoc', 'vim', 'elixir', 'json' },
+  ensure_installed = { 'c', 'cpp', 'go', 'lua', 'python', 'rust', 'tsx', 'typescript', 'vimdoc', 'vim', 'elixir', 'json', 'heex', 'eex' },
 
   -- Autoinstall languages that are not installed. Defaults to false (but you can change for yourself!)
   auto_install = false,
@@ -685,15 +707,19 @@ require('nvim-treesitter.configs').setup {
       set_jumps = true, -- whether to set jumps in the jumplist
       goto_next_start = {
         [']m'] = '@function.outer',
-        [']]'] = '@class.outer',
+        [']['] = '@class.outer',
+        [']c'] = '@conditional.outer',
+        [']a'] = '@parameter.outer'
       },
       goto_next_end = {
         [']M'] = '@function.outer',
-        [']['] = '@class.outer',
+        [']]'] = '@class.outer',
       },
       goto_previous_start = {
         ['[m'] = '@function.outer',
         ['[['] = '@class.outer',
+        ['[c'] = '@conditional.outer',
+        ['[a'] = '@parameter.outer'
       },
       goto_previous_end = {
         ['[M'] = '@function.outer',
@@ -707,6 +733,15 @@ require('nvim-treesitter.configs').setup {
       },
       swap_previous = {
         ['<leader>A'] = '@parameter.inner',
+      },
+    },
+    lsp_interop = {
+      enable = true,
+      border = 'none',
+      floating_preview_opts = {},
+      peek_definition_code = {
+        ["<leader>df"] = "@function.outer",
+        ["<leader>dF"] = "@class.outer",
       },
     },
   },
@@ -815,8 +850,8 @@ require('neodev').setup()
 -- nvim-cmp supports additional completion capabilities, so broadcast that to servers
 local capabilities = vim.lsp.protocol.make_client_capabilities()
 capabilities = require('cmp_nvim_lsp').default_capabilities(capabilities)
-capabilities.textDocument.completion.dynamicRegistration = true
-capabilities.workspace = { didChangeConfiguration = { dynamicRegistration = true } }
+-- capabilities.textDocument.completion.dynamicRegistration = true
+-- capabilities.workspace = { didChangeConfiguration = { dynamicRegistration = true } }
 
 -- Ensure the servers above are installed
 local mason_lspconfig = require 'mason-lspconfig'
@@ -835,7 +870,7 @@ mason_lspconfig.setup_handlers {
   end,
 }
 
-vim.lsp.set_log_level("debug")
+-- vim.lsp.set_log_level("debug")
 
 -- nvim-cmp setup
 local cmp = require('cmp')
@@ -901,12 +936,44 @@ autocmd BufWritePre * :%s/\s\+$//e
 "   set termguicolors
 " endif
 
+function! s:GotoFirstFloat() abort
+  for w in range(1, winnr('$'))
+    let c = nvim_win_get_config(win_getid(w))
+    if c.focusable && !empty(c.relative)
+      execute w . 'wincmd w'
+    endif
+  endfor
+endfunction
+noremap <c-w><space> :<c-u>call <sid>GotoFirstFloat()<cr>
+
 
 " DB integration
 
 let g:db_ui_execute_on_save = 0
 "let g:db_ui_auto_execute_table_helpers = 1
 "let g:db_ui_use_nerd_fonts = 1
+
+
+
+function! s:populate_query() abort
+  let rows = db_ui#query(printf(
+    \ "select column_name, data_type from information_schema.columns where table_name='%s' and table_schema='%s'",
+    \ b:dbui_table_name,
+    \ b:dbui_schema_name
+    \ ))
+  let lines = ['INSERT INTO '.b:dbui_table_name.' (']
+  for [column, datatype] in rows
+    call add(lines, column)
+  endfor
+  call add(lines, ') VALUES (')
+  for [column, datatype] in rows
+    call add(lines, printf('%s <%s>', column, datatype))
+  endfor
+  call add(lines, ')')
+  call setline(1, lines)
+endfunction
+
+autocmd FileType sql nnoremap <buffer><leader>i :call <sid>populate_query()
 
 autocmd FileType sql,mysql,plsql lua require('cmp').setup.buffer({ sources = {{ name = 'vim-dadbod-completion' }} })
 
