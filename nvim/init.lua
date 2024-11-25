@@ -67,6 +67,10 @@ vim.opt.rtp:prepend(lazypath)
 --    as they will be available in your neovim runtime.
 require('lazy').setup({
   -- NOTE: First, some plugins that don't require any configuration
+  -- camel case, snake case etc
+  'tpope/vim-abolish',
+
+  'backdround/improved-ft.nvim',
 
 
   -- Git related plugins
@@ -387,11 +391,23 @@ require('lazy').setup({
     -- See `:help lualine.txt`
     opts = {
       options = {
-        icons_enabled = false,
+        icons_enabled = true,
         theme = 'sonokai',
         component_separators = '|',
         section_separators = '',
+
       },
+      sections = {
+
+        lualine_a = { 'mode' },
+        lualine_b = {},
+        -- lualine_b = { 'branch', 'diff', 'diagnostics' },
+        lualine_c = { { 'filename', path = 1 } },
+        lualine_x = { 'encoding', 'fileformat', 'filetype' },
+        lualine_y = { 'progress' },
+        lualine_z = { 'location' }
+      },
+
     },
   },
 
@@ -824,7 +840,7 @@ end
 --  the `settings` field of the server config. You must look up that documentation yourself.
 local servers = {
   -- clangd = {},
-  -- gopls = {},
+  gopls = {},
   -- pyright = {},
   -- rust_analyzer = {},
   -- tsserver = {},
@@ -836,12 +852,11 @@ local servers = {
     },
   },
 
-  -- elixirls = {
-  --   autoBuild = false,
-  --   dialyzerEnabled = false,
-  --   fetchDeps = false,
-  --   projectDir = '/Users/gracjanmazur/repos/ecom_api'
-  -- },
+  elixirls = {
+    autoBuild = false,
+    dialyzerEnabled = false,
+    fetchDeps = false
+  },
 }
 
 -- Setup neovim lua configuration
