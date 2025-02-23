@@ -29,7 +29,74 @@ P.S. You can delete this when you're done too. It's your config now :)
 --  NOTE: Must happen before plugins are required (otherwise wrong leader will be used)
 --
 --
---
+
+local function nvim_tree_on_attach(bufnr)
+  local api = require("nvim-tree.api")
+  local luv = vim.loop
+
+  -- Function to recursively add files in a directory to chat references
+  local function traverse_directory(path, chat)
+    local handle, err = luv.fs_scandir(path)
+    if not handle then return print("Error scanning directory: " .. err) end
+
+    while true do
+      local name, type = luv.fs_scandir_next(handle)
+      if not name then break end
+
+      local item_path = path .. "/" .. name
+      if type == "file" then
+        -- add the file to references
+        chat.References:add({
+          id = '<file>' .. item_path .. '</file>',
+          path = item_path,
+          source = "codecompanion.strategies.chat.slash_commands.file",
+          opts = {
+            pinned = truetelescope
+          }
+        })
+      elseif type == "directory" then
+        -- recursive call for a subdirectory
+        traverse_directory(item_path, chat)
+      end
+    end
+  end
+
+  -- Attach default mappings
+  api.config.mappings.default_on_attach(bufnr)
+
+  vim.keymap.set('n', 'ca', function()
+    local node = api.tree.get_node_under_cursor()
+    local path = node.absolute_path
+    local codecompanion = require("codecompanion")
+    local chat = codecompanion.last_chat()
+    -- create chat if none exists
+    if (chat == nil) then
+      chat = codecompanion.chat()
+    end
+
+    local attr = luv.fs_stat(path)
+    if attr and attr.type == "directory" then
+      -- Recursively traverse the directory
+      traverse_directory(path, chat)
+    else
+      -- if already added, ignore
+      for _, ref in ipairs(chat.refs) do
+        if ref.path == path then
+          return print("Already added")
+        end
+      end
+      chat.References:add({
+        id = '<file>' .. path .. '</file>',
+        path = path,
+        source = "codecompanion.strategies.chat.slash_commands.file",
+        opts = {
+          pinned = true
+        }
+      })
+    end
+  end, { buffer = bufnr, desc = "Add or Pin file to Chat" })
+end
+
 
 local wrap = function(func, ...)
   local args = { ... }
@@ -70,6 +137,7 @@ require('lazy').setup({
   -- camel case, snake case etc
   'tpope/vim-abolish',
 
+
   'backdround/improved-ft.nvim',
 
 
@@ -83,6 +151,16 @@ require('lazy').setup({
   -- 'iago-lito/vim-visualMarks',
 
   -- toggle maximizing
+  --
+  {
+    "folke/zen-mode.nvim",
+    opts = {
+      -- your configuration comes here
+      -- or leave it empty to use the default settings
+      -- refer to the configuration section below
+    }
+  },
+
 
   -- lazygit as floating window
 
@@ -106,6 +184,97 @@ require('lazy').setup({
     }
   },
 
+  -- animations to scrolling
+  {
+    'echasnovski/mini.animate',
+    version = '*',
+    config = function()
+      require('mini.animate').setup()
+    end
+  },
+  -- better a/i text objects
+  { 'echasnovski/mini.ai',  version = '*' },
+  -- animated indent scope
+  {
+    'echasnovski/mini.indentscope',
+    version = false,
+    config = function()
+      require('mini.indentscope').setup()
+    end
+  },
+  -- move lines
+
+  {
+    'echasnovski/mini.move',
+    version = false,
+    config = function()
+      require('mini.move').setup(
+      -- No need to copy this inside `setup()`. Will be used automatically.
+        {
+          -- Module mappings. Use `''` (empty string) to disable one.
+          mappings = {
+            -- Move visual selection in Visual mode. Defaults are Alt (Meta) + hjkl.
+            left = 'H',
+            right = 'L',
+            down = 'J',
+            up = 'K',
+
+            -- Move current line in Normal mode
+            line_left = 'H',
+            line_right = 'L',
+            line_down = 'J',
+            line_up = 'K',
+          },
+
+          -- Options which control moving behavior
+          options = {
+            -- Automatically reindent selection during linewise vertical move
+            reindent_linewise = true,
+          },
+        }
+      )
+    end
+  },
+
+  {
+    'ggandor/leap.nvim',
+    config = function()
+      require('leap').add_default_mappings()
+    end
+  },
+
+  {
+    -- telescope extension
+    "desdic/macrothis.nvim",
+    opts = {},
+    keys = {
+      { "<Leader>kd", function() require('macrothis').delete() end,                  desc = "delete" },
+      { "<Leader>ke", function() require('macrothis').edit() end,                    desc = "edit" },
+      { "<Leader>kl", function() require('macrothis').load() end,                    desc = "load" },
+      { "<Leader>kn", function() require('macrothis').rename() end,                  desc = "rename" },
+      { "<Leader>kq", function() require('macrothis').quickfix() end,                desc = "run macro on all files in quickfix" },
+      { "<Leader>kr", function() require('macrothis').run() end,                     desc = "run macro" },
+      { "<Leader>ks", function() require('macrothis').save() end,                    desc = "save" },
+      { "<Leader>kx", function() require('macrothis').register() end,                desc = "edit register" },
+      { "<Leader>kp", function() require('macrothis').copy_register_printable() end, desc = "Copy register as printable" },
+      { "<Leader>km", function() require('macrothis').copy_macro_printable() end,    desc = "Copy macro as printable" },
+      { "<Leader>kt", ":Telescope macrothis<CR>",                                    desc = "Copy macro as printable" },
+    }
+  },
+
+
+
+
+  -- {
+  --   "ecthelionvi/NeoComposer.nvim",
+  --   dependencies = { "kkharji/sqlite.lua" },
+  --   opts = {},
+  --   config = function()
+  --     require("NeoComposer").setup()
+  --     -- load telescope extension 'macros'
+  --   end
+  -- },
+
   -- AI suggestions
   'ggml-org/llama.vim',
 
@@ -120,10 +289,10 @@ require('lazy').setup({
       require("codecompanion").setup({
         strategies = {
           chat = {
-            adapter = "ollama",
+            adapter = "gemini",
           },
           inline = {
-            adapter = "ollama",
+            adapter = "gemini",
           },
 
         },
@@ -135,8 +304,28 @@ require('lazy').setup({
               },
             })
           end,
+          gemini = function()
+            return require("codecompanion.adapters").extend("gemini", {
+              env = {
+                api_key = "AIzaSyBEav5jt8_GcFFk81cteHTGktt6F6w_n7U"
+              },
+            })
+          end,
+
         },
       })
+
+      vim.api.nvim_set_keymap(
+        "n",
+        "<leader>mp",
+        ":CodeCompanion /buffer<CR>",
+        { noremap = true, desc = 'CodeCompanion Edit Buffer' })
+
+      vim.api.nvim_set_keymap(
+        "n",
+        "<leader>m",
+        ":CodeCompanion /buffer<CR>",
+        { noremap = true })
     end
   },
 
@@ -202,7 +391,9 @@ require('lazy').setup({
     version = '*',
     dependencies = { 'nvim-tree/nvim-web-devicons' },
     config = function()
-      require('nvim-tree').setup {}
+      require('nvim-tree').setup {
+        on_attach = nvim_tree_on_attach,
+      }
     end
   },
 
@@ -621,6 +812,8 @@ local function map(mode, lhs, rhs, opts)
   vim.api.nvim_set_keymap(mode, lhs, rhs, options)
 end
 
+map('n', '<C-q>', ':bdel<CR>', { desc = "delete buffer" })
+
 map('n', '<C-l>', '<C-w>l', { desc = "window switch - right" })
 map('n', '<C-h>', '<C-w>h', { desc = "window switch - left" })
 map('n', '<C-j>', '<C-w>j', { desc = "window switch - down" })
@@ -694,6 +887,8 @@ require('telescope').setup {
 pcall(require('telescope').load_extension, 'fzf')
 pcall(require('telescope').load_extension, 'ag')
 pcall(require('telescope').load_extension('command_palette'))
+pcall(require('telescope').load_extension('macrothis'))
+-- pcall(require('telescope').load_extension('macros'))
 
 
 -- See `:help telescope.builtin`
@@ -703,7 +898,7 @@ vim.keymap.set('n', '<leader>/', function()
   -- You can pass additional configuration to telescope to change theme, layout, etc.
   require('telescope.builtin').current_buffer_fuzzy_find(require('telescope.themes').get_dropdown {
     winblend = 10,
-    previewer = false,
+    previewer = true,
   })
 end, { desc = '[/] Fuzzily search in current buffer' })
 
@@ -850,7 +1045,7 @@ local on_attach = function(_, bufnr)
   nmap('<leader>ws', require('telescope.builtin').lsp_dynamic_workspace_symbols, '[W]orkspace [S]ymbols')
 
   -- See `:help K` for why this keymap
-  nmap('K', vim.lsp.buf.hover, 'Hover Documentation')
+  nmap('<C-k>', vim.lsp.buf.hover, 'Hover Documentation')
   --  nmap('<C-k>', vim.lsp.buf.signature_help, 'Signature Documentation')
 
   -- Lesser used LSP functionality
@@ -970,6 +1165,7 @@ cmp.setup {
 
 vim.g.db_ui_auto_execute_table_helpers = 1
 vim.g.db_ui_use_nerd_fonts = 1
+
 
 vim.cmd([[
 
