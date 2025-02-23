@@ -29,6 +29,10 @@ P.S. You can delete this when you're done too. It's your config now :)
 --  NOTE: Must happen before plugins are required (otherwise wrong leader will be used)
 --
 --
+--
+-- Things to setup manually:
+-- envs:
+-- GEMINI_API_KEY
 
 local function nvim_tree_on_attach(bufnr)
   local api = require("nvim-tree.api")
@@ -307,7 +311,7 @@ require('lazy').setup({
           gemini = function()
             return require("codecompanion.adapters").extend("gemini", {
               env = {
-                api_key = "AIzaSyBEav5jt8_GcFFk81cteHTGktt6F6w_n7U"
+                api_key = os.getenv("GEMINI_API_KEY")
               },
             })
           end,
