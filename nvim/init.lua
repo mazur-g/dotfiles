@@ -136,6 +136,9 @@ require('lazy').setup({
   -- NOTE: First, some plugins that don't require any configuration
   -- camel case, snake case etc
   'tpope/vim-abolish',
+  -- text object for entire buffer
+  --
+  { 'kana/vim-textobj-entire',  dependencies = 'kana/vim-textobj-user' },
 
 
   'backdround/improved-ft.nvim',
@@ -159,6 +162,15 @@ require('lazy').setup({
       -- or leave it empty to use the default settings
       -- refer to the configuration section below
     }
+  },
+
+  -- create telescope pickers from CLI commands
+  { 'axkirillov/easypick.nvim', dependencies = 'nvim-telescope/telescope.nvim' },
+  -- search in modified files only (git)
+  --
+  -- load telescope extension changed_files
+  {
+    "axkirillov/telescope-changed-files"
   },
 
 
@@ -264,16 +276,6 @@ require('lazy').setup({
 
 
 
-
-  -- {
-  --   "ecthelionvi/NeoComposer.nvim",
-  --   dependencies = { "kkharji/sqlite.lua" },
-  --   opts = {},
-  --   config = function()
-  --     require("NeoComposer").setup()
-  --     -- load telescope extension 'macros'
-  --   end
-  -- },
 
   -- AI suggestions
   'ggml-org/llama.vim',
@@ -853,9 +855,11 @@ require('telescope').setup {
   defaults = {
     mappings = {
       i = {
-        ['<C-u>'] = false,
-        ['<C-d>'] = false,
+        -- ['<C-u>'] = false,
+        -- ['<C-d>'] = false,
         ['<C-s>'] = require('telescope.actions').send_selected_to_qflist,
+        ['<M-.>'] = require('telescope.actions').results_scrolling_right,
+        ['<M-,>'] = require('telescope.actions').results_scrolling_left,
       },
       n = {
         ['<C-s>'] = require('telescope.actions').send_selected_to_qflist,
@@ -888,7 +892,320 @@ pcall(require('telescope').load_extension, 'fzf')
 pcall(require('telescope').load_extension, 'ag')
 pcall(require('telescope').load_extension('command_palette'))
 pcall(require('telescope').load_extension('macrothis'))
+pcall(require('telescope').load_extension('changed_files'))
+
 -- pcall(require('telescope').load_extension('macros'))
+--
+--
+
+function GrepChangedFiles()
+  local telescope = require("telescope.builtin")
+  local git_files = vim.fn.systemlist("git diff --name-only")
+  if #git_files == 0 then
+    print("No changed files")
+    return
+  end
+
+  telescope.live_grep({
+    search_dirs = git_files,
+  })
+end
+
+function GrepBranchChangedLines()
+  local GitDiffHunks = require("utils.git")
+  local pickers = require("telescope.pickers")
+  local finders = require("telescope.finders")
+  local conf = require("telescope.config").values
+  local actions = require("telescope.actions")
+  local action_state = require("telescope.actions.state")
+  local previewers = require("telescope.previewers")
+
+  local base = vim.fn.systemlist("git merge-base --fork-point master")[1]
+  if not base or base == "" then
+    print("❌ Failed to find base commit")
+    return
+  end
+  print("✅ Base commit found: " .. base)
+
+  local diff_output = vim.fn.systemlist(
+    "git diff -U0 --unified=0 --no-prefix " ..
+    base .. "..HEAD && git diff -U0 --unified=0 --cached --no-prefix && git diff -U0 --unified=0 --no-prefix"
+  )
+
+  print("🔍 Diff lines: " .. #diff_output)
+  if #diff_output == 0 then
+    print("❌ No lines detected")
+    return
+  end
+
+  print(table.concat(diff_output, "\n"))
+
+  local hunks = GitDiffHunks.parse_git_diff(table.concat(diff_output, "\n"))
+  GitDiffHunks.print_hunks(hunks)
+  local results = {}
+
+  for _, h in ipairs(hunks) do
+    print("📌 Hunk for file: " .. (h.filename or "Unknown"))
+    local lineno = h.line_start
+    for _, l in ipairs(h.lines) do
+      if not l:match("^%-") then -- Ignore removed lines
+        table.insert(results, (h.filename or "Unknown") .. ":" .. (lineno or "?") .. ":" .. l)
+        if lineno then
+          lineno = lineno + 1
+        end
+      end
+    end
+  end
+
+  print("\n✅ Total Results: " .. #results)
+  if #results == 0 then
+    print("❌ No modified or added lines detected")
+    return
+  end
+
+  pickers.new({}, {
+    prompt_title = "Changed Lines on This Branch",
+    finder = finders.new_table({
+      results = results,
+    }),
+    sorter = conf.generic_sorter({}),
+    previewer = previewers.new_buffer_previewer({
+      define_preview = function(self, entry, status)
+        local parts = vim.split(entry.value, ":")
+        local filename = parts[1]
+        local lineno = tonumber(parts[2])
+        print("Previewing file:", filename, "at line:", lineno)
+        vim.api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, {}) -- Clear buffer
+        if filename and vim.fn.filereadable(filename) == 1 then
+          vim.api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, vim.fn.readfile(filename))
+          if lineno then
+            vim.api.nvim_buf_add_highlight(self.state.bufnr, -1, "Search", lineno - 1, 0, -1)
+          end
+        end
+      end,
+    }),
+    attach_mappings = function(prompt_bufnr, _)
+      actions.select_default:replace(function()
+        actions.close(prompt_bufnr)
+        local selection = action_state.get_selected_entry()
+        local parts = vim.split(selection.value, ":")
+        local filename = parts[1]
+        local lineno = tonumber(parts[2])
+        vim.cmd("e " .. filename)
+        vim.api.nvim_win_set_cursor(0, { lineno, 0 })
+      end)
+      return true
+    end,
+  }):find()
+end
+
+function GrepBranchChangedFiles()
+  local telescope = require("telescope.builtin")
+  local base = vim.fn.systemlist("git merge-base HEAD master")[1]
+  if not base or base == "" then
+    print("Failed to find base commit")
+    return
+  end
+
+  local git_files = vim.fn.systemlist("git diff --name-only " .. base .. "..HEAD")
+  if #git_files == 0 then
+    print("No files modified in current branch")
+    return
+  end
+
+  telescope.live_grep({
+    search_dirs = git_files,
+  })
+end
+
+-- function GrepBranchChangedLines()
+--   local pickers = require("telescope.pickers")
+--   local finders = require("telescope.finders")
+--   local conf = require("telescope.config").values
+--   local actions = require("telescope.actions")
+--   local action_state = require("telescope.actions.state")
+--
+--   local base = vim.fn.systemlist("git merge-base --fork-point master")[1]
+--   if not base or base == "" then
+--     print("❌ Failed to find base commit")
+--     return
+--   end
+--   print("✅ Base commit found: " .. base)
+--
+--   local diff_output = vim.fn.systemlist(
+--     "git diff -U0 --unified=0 --no-prefix " ..
+--     base .. "..HEAD && git diff -U0 --unified=0 --cached --no-prefix && git diff -U0 --unified=0 --no-prefix"
+--   )
+--
+--   print("🔍 Diff lines: " .. #diff_output)
+--   if #diff_output == 0 then
+--     print("❌ No lines detected")
+--     return
+--   end
+--
+--   local results = {}
+--   local current_file = nil
+--   local lineno = nil
+--   local hunks = {}
+--   local hunk = {}
+--
+--   print("\n=== GIT DIFF OUTPUT ===")
+--   for i, line in ipairs(diff_output) do
+--     line = line:gsub("%s+$", "") -- 🔥 Strip trailing whitespace
+--     print(i .. ": '" .. line .. "'")
+--
+--     local filename = line:match("^diff %-%-git%s+(.+)%s+(.+)")
+--     if filename then
+--       if #hunk > 0 then
+--         table.insert(hunks, { file = current_file, lines = hunk })
+--         hunk = {}
+--       end
+--       current_file = filename:match("[^%s]+$")
+--       print("📄 Found file: " .. current_file)
+--     end
+--
+--     local hunk_lno = line:match("^@@ %-%d+,%d+ %+(%d+),?%d* @@")
+--     if hunk_lno then
+--       if #hunk > 0 then
+--         table.insert(hunks, { file = current_file, lines = hunk })
+--         hunk = {}
+--       end
+--       lineno = tonumber(hunk_lno)
+--       print("🔢 Found line start: " .. lineno)
+--     end
+--
+--     if current_file and lineno and line:match("^%+") and not line:match("^%+%+") then
+--       local content = line:match("^%+(.*)")
+--       print("✅ Added line: " .. content)
+--       table.insert(hunk, { line = content, lineno = lineno })
+--       lineno = lineno + 1
+--     end
+--   end
+--
+--   if #hunk > 0 then
+--     table.insert(hunks, { file = current_file, lines = hunk })
+--   end
+--
+--   for _, h in ipairs(hunks) do
+--     print("📌 Hunk for file: " .. h.file)
+--     for _, l in ipairs(h.lines) do
+--       print("    " .. l.lineno .. ": " .. l.line)
+--       table.insert(results, h.file .. ":" .. l.lineno .. ":" .. l.line)
+--     end
+--   end
+--
+--   print("\n✅ Total Results: " .. #results)
+--   if #results == 0 then
+--     print("❌ No modified or added lines detected")
+--     return
+--   end
+--
+--   pickers.new({}, {
+--     prompt_title = "Changed Lines on This Branch",
+--     finder = finders.new_table({
+--       results = results,
+--     }),
+--     sorter = conf.generic_sorter({}),
+--     attach_mappings = function(prompt_bufnr, _)
+--       actions.select_default:replace(function()
+--         actions.close(prompt_bufnr)
+--         local selection = action_state.get_selected_entry()
+--         local parts = vim.split(selection[1], ":")
+--         local filename = parts[1]
+--         local lineno = tonumber(parts[2])
+--         vim.cmd("e " .. filename)
+--         vim.api.nvim_win_set_cursor(0, { lineno, 0 })
+--       end)
+--       return true
+--     end,
+--   }):find()
+-- end
+
+-- function GrepBranchChangedLines()
+--   local pickers = require("telescope.pickers")
+--   local finders = require("telescope.finders")
+--   local conf = require("telescope.config").values
+--   local actions = require("telescope.actions")
+--   local action_state = require("telescope.actions.state")
+--
+--   local base = vim.fn.systemlist("git merge-base --fork-point master")[1]
+--   if not base or base == "" then
+--     print("❌ Failed to find base commit")
+--     return
+--   end
+--   print("✅ Base commit found: " .. base)
+--
+--   local diff_output = vim.fn.systemlist(
+--     "git diff -U0 --unified=0 --no-prefix " ..
+--     base .. "..HEAD && git diff -U0 --unified=0 --cached --no-prefix && git diff -U0 --unified=0 --no-prefix"
+--   )
+--
+--   print("🔍 Diff lines: " .. #diff_output)
+--   if #diff_output == 0 then
+--     print("❌ No lines detected")
+--     return
+--   end
+--
+--   local results = {}
+--   local current_file = nil
+--   local lineno = 1 -- Default lineno to 1 to avoid nil
+--
+--   print("\n=== GIT DIFF OUTPUT ===")
+--   for i, line in ipairs(diff_output) do
+--     line = line:gsub("%s+$", "") -- 🔥 Strip trailing whitespace
+--     print(i .. ": '" .. line .. "'")
+--
+--     local filename = line:match("^diff %-%-git .+ b/(.+)")
+--     if filename then
+--       current_file = filename
+--       print("📄 Found file: " .. current_file)
+--     end
+--
+--     local hunk_lno = line:match("^@@ %-%d+,%d+ %+(%d+),?%d* @@")
+--     if hunk_lno then
+--       lineno = tonumber(hunk_lno)
+--       print("🔢 Found line start: " .. lineno)
+--     end
+--
+--     if line:match("^%+") and not line:match("^%+%+") then
+--       local content = line:match("^%+(.*)")
+--       print("✅ Added line: " .. content)
+--       table.insert(results, content)
+--       lineno = lineno + 1
+--     elseif line:match("^%-") then
+--       print("❌ Deleted line ignored")
+--     elseif line:match("^diff") then
+--       print("ℹ️ File header")
+--     elseif line:match("^@@") then
+--       print("ℹ️ Hunk header")
+--     else
+--       print("🤔 No match")
+--     end
+--   end
+--
+--   print("\n✅ Total Results: " .. #results)
+--   if #results == 0 then
+--     print("❌ No modified or added lines detected")
+--     return
+--   end
+--
+--   pickers.new({}, {
+--     prompt_title = "Changed Lines on This Branch",
+--     finder = finders.new_table({
+--       results = results,
+--     }),
+--     sorter = conf.generic_sorter({}),
+--     attach_mappings = function(prompt_bufnr, _)
+--       actions.select_default:replace(function()
+--         actions.close(prompt_bufnr)
+--         local selection = action_state.get_selected_entry()
+--         print("🎯 Selected: " .. selection[1])
+--       end)
+--       return true
+--     end,
+--   }):find()
+-- end
+
 
 
 -- See `:help telescope.builtin`
@@ -908,10 +1225,16 @@ vim.keymap.set('n', '<leader>sf', require('telescope.builtin').find_files, { des
 vim.keymap.set('n', '<leader>sa', wrap(require('telescope.builtin').find_files, { no_ignore = true, hidden = true }),
   { desc = '[S]earch [A]ll files (even ignored in .gitignore)' })
 
+vim.keymap.set('n', '<leader>sc', ':Telescope changed_files<cr>', { desc = "[S]earch [C]hanged files" })
 vim.keymap.set('n', '<leader>sh', require('telescope.builtin').help_tags, { desc = '[S]earch [H]elp' })
 vim.keymap.set('n', '<leader>sw', require('telescope.builtin').grep_string, { desc = '[S]earch current [W]ord' })
 vim.keymap.set('n', '<leader>sg', require('telescope.builtin').live_grep, { desc = '[S]earch by [G]rep' })
 vim.keymap.set('n', '<leader>sd', require('telescope.builtin').diagnostics, { desc = '[S]earch [D]iagnostics' })
+vim.keymap.set("n", '<leader>sic', ":lua GrepChangedFiles()<CR>",
+  { desc = '[S]each [I]n [C]hanged files only', noremap = true, silent = true })
+vim.keymap.set("n", '<leader>sibc', ":lua GrepBranchChangedFiles()<CR>",
+  { desc = '[S]each [I]n [B]ranch [C]hanged files only', noremap = true, silent = true })
+vim.keymap.set("n", "<leader>sibl", ":lua GrepBranchChangedLines()<CR>", { noremap = true, silent = true })
 
 -- [[ Configure Treesitter ]]
 -- See `:help nvim-treesitter`
@@ -1045,7 +1368,7 @@ local on_attach = function(_, bufnr)
   nmap('<leader>ws', require('telescope.builtin').lsp_dynamic_workspace_symbols, '[W]orkspace [S]ymbols')
 
   -- See `:help K` for why this keymap
-  nmap('<C-k>', vim.lsp.buf.hover, 'Hover Documentation')
+  -- nmap('<C-k>', vim.lsp.buf.hover, 'Hover Documentation')
   --  nmap('<C-k>', vim.lsp.buf.signature_help, 'Signature Documentation')
 
   -- Lesser used LSP functionality
