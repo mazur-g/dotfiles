@@ -5,37 +5,31 @@ function M.parse_git_diff(diff_output)
 	local current_hunk = nil
 
 	for line in diff_output:gmatch("[^\r\n]+") do
-		print("processing line: " .. line)
 		if line:match("^%-%-%-") or line:match("^%+%+%+") then
-			print("matched --- or matched +++")
 			if current_hunk then
 				if next(current_hunk.lines) ~= nil then
-					print("inserting hunk" ..
-						(current_hunk.header or "noh") .. (current_hunk.filename or
-							"nof") .. table.concat(current_hunk.lines, "\n"))
 					table.insert(hunks, current_hunk)
 				end
 			end
 			current_hunk = { filename = line:sub(5), lines = {} }
 		elseif line:match("^@@") then
-			print("matched @@")
 			local start, count = line:match("%+(%d+),?(%d*)")
 			if (next(current_hunk.lines) ~= nil) then
-				print("inserting hunk" ..
-					(current_hunk.header or "noh") .. (current_hunk.filename or
-						"nof") .. table.concat(current_hunk.lines, "\n"))
-
 				table.insert(hunks, current_hunk)
-				current_hunk = { header = line, lines = {}, filename = current_hunk.filename, line_start =
-				tonumber(start), line_end = tonumber(start) + (tonumber(count) or 1) - 1 }
+				current_hunk = {
+					header = line,
+					lines = {},
+					filename = current_hunk.filename,
+					line_start =
+					    tonumber(start),
+					line_end = tonumber(start) + (tonumber(count) or 1) - 1
+				}
 			else
 				current_hunk.header = line
 				current_hunk.line_start = tonumber(start)
 				current_hunk.line_end = tonumber(start) + (tonumber(count) or 1) - 1
 			end
 		elseif line:match("^diff %-%-git") or line:match("^index") then
-			print("ignoring")
-
 			-- Ignore these lines
 		elseif current_hunk then
 			table.insert(current_hunk.lines, line)
@@ -43,10 +37,6 @@ function M.parse_git_diff(diff_output)
 	end
 
 	if current_hunk then
-		print("inserting hunk" ..
-			(current_hunk.header or "noh") .. (current_hunk.filename or
-				"nof") .. table.concat(current_hunk.lines, "\n"))
-
 		table.insert(hunks, current_hunk)
 	end
 
@@ -54,12 +44,7 @@ function M.parse_git_diff(diff_output)
 end
 
 function M.print_hunks(hunks)
-	print("Parsed Hunks:")
-	for i, hunk in ipairs(hunks) do
-		print("Hunk " .. i .. ": " .. (hunk.filename or "nofile") .. " " .. hunk.header)
-		if hunk.line_start and hunk.line_end then
-			print("    Lines: " .. hunk.line_start .. "-" .. hunk.line_end)
-		end
+	for _, hunk in ipairs(hunks) do
 		for _, l in ipairs(hunk.lines) do
 			print("    " .. l)
 		end
