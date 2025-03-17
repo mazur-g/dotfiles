@@ -1,7 +1,7 @@
 [font]
-size = 23.0
-#size = 17.0
-#size = 25.0
+# size = 23.0
+# size = 17.0
+size = 24.0
 
 [font.normal]
 family = "Inconsolata Nerd Font"
@@ -9,6 +9,8 @@ style = "Regular"
 
 [window]
 option_as_alt = "OnlyLeft"
+opacity = 0.9
 
 [env]
 term = "xterm-256color"
+
